@@ -1,4 +1,6 @@
-__author__ = 'samuel'
+"""
+@author Samuel Brian
+"""
 
 from serial import Serial
 from serial.tools.list_ports import comports
@@ -138,12 +140,12 @@ class AVRPy:
         elif item in  object.__getattribute__(self, "_SFR_IO16"):
             self.setValue(self._SFR_IO16[item], value, WRITE_IO16)
         elif item in  object.__getattribute__(self, "_SFR_MEM8"):
-            self.setValue(self._SFR_MEM8[item], value, WRITE_IO8)
+            self.setValue(self._SFR_MEM8[item], value, WRITE_MEM8)
         elif item in  object.__getattribute__(self, "_SFR_MEM16"):
-            self.setValue(self._SFR_MEM16[item], value, WRITE_IO16)
+            self.setValue(self._SFR_MEM16[item], value, WRITE_MEM16)
         elif item in  object.__getattribute__(self, "constants"):
             raise AttributeError("Constants are read-only attributes.")
-        elif item in  object.__getattribute__(self, "_vect"):
+        elif item in  object.__getattribute__(self, "vectorIndices"):
             index = self.vectorIndices[item]
             if callable(value):
                 self._vect[index] = value
@@ -169,7 +171,7 @@ class AVRPy:
             return self.getValue(self._SFR_MEM16[item], READ_MEM16)
         if item in object.__getattribute__(self, "constants"):
             return self.constants[item]
-        if item in object.__getattribute__(self, "_vect"):
+        if item in object.__getattribute__(self, "vectorIndices"):
             raise AttributeError("Interrupt vectors are write-only attributes.")
         else:
             return object.__getattribute__(self, item)
@@ -183,7 +185,7 @@ class AVRPy:
                     or item in object.__getattribute__(self, "_SFR_MEM8")   \
                     or item in object.__getattribute__(self, "_SFR_MEM16")  \
                     or item in object.__getattribute__(self, "constants")   \
-                    or item in object.__getattribute__(self, "_vect")       \
+                    or item in object.__getattribute__(self, "vectorIndices")       \
                     or item in self.__dict__
         except:
             return item in self.__dict__
@@ -202,17 +204,32 @@ class AVRPy:
         self.piper.write_packet(REGISTER_PIPE, packet)
 
     def handleInterrupt(self, index):
+        index = uint8R(index)
         print("Interrupt " + str(index))
-        if self._vect[index] is not None: self._vect[index]()
+        if self._vect[index] is not None: self._vect[index](index)
 
     def enableInterrupt(self, index):
-        self.piper.write_packet(INTERRUPT_PIPE, uint8(INT_ENABLE) + uint8(index))
+        self.piper.write_packet(INTERRUPT_PIPE, uint8(index) + uint8(INT_ENABLE))
 
     def disableInterrupt(self, index):
-        self.piper.write_packet(INTERRUPT_PIPE, uint8(INT_DISABLE) + uint8(index))
+        self.piper.write_packet(INTERRUPT_PIPE, uint8(index) + uint8(INT_DISABLE))
+
+    def generateFirmwareISRs(self):
+        s = ""
+        for interrupt_name in sorted(self.vectorIndices, key=self.vectorIndices.get):
+            s += "ISR({0}) {{ triggerInterrupt({1}); }}\n".format(interrupt_name, avr.vectorIndices[interrupt_name])
+        return s
 
 
-# Testing...
-avr = AVRPy()
-avr.parse("avrheaders/iom32u4.h")
-avr.connect()
+# # Testing...
+# avr = AVRPy()
+# avr.parse("avrheaders/iom32u4.h")
+# avr.connect()
+#
+# # Play with INT0 on PIND0
+# avr.DDRD &= ~(1 << avr.DDD0)
+# avr.PORTD |= (1 << avr.PORTD0)
+# avr.EICRA |= (1 << avr.ISC00)
+# avr.EIMSK |= (1 << avr.INT0)
+# avr.INT0_vect = print
+# avr.piper.start()
