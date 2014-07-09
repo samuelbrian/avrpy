@@ -15,6 +15,8 @@ READ8           = 0x01
 READ16          = 0x02
 WRITE8          = 0xF1
 WRITE16         = 0xF2
+INT_ENABLE      = 0x01
+INT_DISABLE     = 0x00
 
 def to_int(string):
     return int(string, 16) if "x" in string else int(string, 10)
@@ -54,6 +56,7 @@ class AVRPy:
         try:
             self.serial = Serial(port, baudrate)
             self.piper = Piper(self.serial)
+            self.piper.set_read_callback(INTERRUPT_PIPE, self.handleInterrupt)
         except Exception as e:
             raise Exception("Could not connect to AVR on serial port {0}.".format(port))
 
@@ -104,8 +107,9 @@ class AVRPy:
                 # Interrupt vectors
                 matches = re.search("_VECTOR\((.+)\)", line)
                 if matches is not None:
-                    self.vectorIndices[spl[1]] = to_int(matches.groups()[0])
-                    self._vect[spl[1]] = None
+                    index = to_int(matches.groups()[0])
+                    self.vectorIndices[spl[1]] = index
+                    self._vect[index] = None
                     continue
 
                 # Other constants
@@ -136,9 +140,16 @@ class AVRPy:
         elif item in  object.__getattribute__(self, "constants"):
             raise AttributeError("Constants are read-only attributes.")
         elif item in  object.__getattribute__(self, "_vect"):
-            if not (callable(value) or None):
+            index = self.vectorIndices[item]
+            if callable(value):
+                self._vect[index] = value
+                self.enableInterrupt(index)
+            elif value is None:
+                self._vect[index] = None
+                self.disableInterrupt(index)
+            else:
                 raise AttributeError("Interrupt vectors must be assigned a callable object or None.")
-            self._vect[item] = value
+
         else:
             object.__setattr__(self, item, value)
 
@@ -185,6 +196,16 @@ class AVRPy:
         if write_token == WRITE8:    packet += uint8(value)
         elif write_token == WRITE16: packet += uint16(value)
         self.piper.write_packet(REGISTER_PIPE, packet)
+
+    def handleInterrupt(self, index):
+        print("Interrupt " + str(index))
+        if self._vect[index] is not None: self._vect[index]()
+
+    def enableInterrupt(self, index):
+        self.piper.write_packet(INTERRUPT_PIPE, uint8(INT_ENABLE) + uint8(index))
+
+    def disableInterrupt(self, index):
+        self.piper.write_packet(INTERRUPT_PIPE, uint8(INT_DISABLE) + uint8(index))
 
 
 # Testing...
