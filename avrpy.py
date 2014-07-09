@@ -11,10 +11,14 @@ REGISTER_PIPE   = 0x00
 INTERRUPT_PIPE  = 0x01
 
 # Operation tokens
-READ8           = 0x01
-READ16          = 0x02
-WRITE8          = 0xF1
-WRITE16         = 0xF2
+READ_IO8        = 0x01
+READ_IO16       = 0x02
+READ_MEM8       = 0x03
+READ_MEM16      = 0x04
+WRITE_IO8       = 0xF1
+WRITE_IO16      = 0xF2
+WRITE_MEM8      = 0xF3
+WRITE_MEM16     = 0xF4
 INT_ENABLE      = 0x01
 INT_DISABLE     = 0x00
 
@@ -130,13 +134,13 @@ class AVRPy:
             return
 
         if item in object.__getattribute__(self, "_SFR_IO8"):
-            self.setValue(self._SFR_IO8[item], value, WRITE8)
+            self.setValue(self._SFR_IO8[item], value, WRITE_IO8)
         elif item in  object.__getattribute__(self, "_SFR_IO16"):
-            self.setValue(self._SFR_IO16[item], value, WRITE16)
+            self.setValue(self._SFR_IO16[item], value, WRITE_IO16)
         elif item in  object.__getattribute__(self, "_SFR_MEM8"):
-            self.setValue(self._SFR_MEM8[item], value, WRITE8)
+            self.setValue(self._SFR_MEM8[item], value, WRITE_IO8)
         elif item in  object.__getattribute__(self, "_SFR_MEM16"):
-            self.setValue(self._SFR_MEM16[item], value, WRITE16)
+            self.setValue(self._SFR_MEM16[item], value, WRITE_IO16)
         elif item in  object.__getattribute__(self, "constants"):
             raise AttributeError("Constants are read-only attributes.")
         elif item in  object.__getattribute__(self, "_vect"):
@@ -156,13 +160,13 @@ class AVRPy:
     def __getattr__(self, item):
 
         if item in object.__getattribute__(self, "_SFR_IO8"):
-            return self.getValue(self._SFR_IO8[item], READ8)
+            return self.getValue(self._SFR_IO8[item], READ_IO8)
         if item in object.__getattribute__(self, "_SFR_IO16"):
-            return self.getValue(self._SFR_IO16[item], READ16)
+            return self.getValue(self._SFR_IO16[item], READ_IO16)
         if item in object.__getattribute__(self, "_SFR_MEM8"):
-            return self.getValue(self._SFR_MEM8[item], READ8)
+            return self.getValue(self._SFR_MEM8[item], READ_MEM8)
         if item in object.__getattribute__(self, "_SFR_MEM16"):
-            return self.getValue(self._SFR_MEM16[item], READ16)
+            return self.getValue(self._SFR_MEM16[item], READ_MEM16)
         if item in object.__getattribute__(self, "constants"):
             return self.constants[item]
         if item in object.__getattribute__(self, "_vect"):
@@ -193,8 +197,8 @@ class AVRPy:
 
     def setValue(self, address, value, write_token):
         packet = uint8(address) + uint8(write_token)
-        if write_token == WRITE8:    packet += uint8(value)
-        elif write_token == WRITE16: packet += uint16(value)
+        if write_token == WRITE_IO8 or write_token == WRITE_MEM8: packet += uint8(value)
+        elif write_token == WRITE_IO16 or write_token == WRITE_MEM16: packet += uint16(value)
         self.piper.write_packet(REGISTER_PIPE, packet)
 
     def handleInterrupt(self, index):
