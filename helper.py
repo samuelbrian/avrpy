@@ -17,6 +17,7 @@ def bytes_to_str(data):
 
 ## Pack an integer number into a uint8 (1 byte string).
 def uint8(num):
+    num = max(min(num, 0xFF), 0x00)
     return pack("<B", num)
 
 ## Pack an integer number into an int8 (1 byte string).
@@ -25,6 +26,7 @@ def int8(num):
 
 ## Pack an integer number into a uint16 (2 byte string).
 def uint16(num):
+    num = max(min(num, 0xFFFF), 0x0000)
     return pack("<H", num)
 
 ## Pack an integer number into a int16 (2 byte string).
@@ -143,4 +145,7 @@ class RWFile:
     def close(self):
         self.rfile.close()
         self.wfile.close()
+
+def to_int(string):
+    return int(string, 16) if "x" in string else int(string, 10)
 
