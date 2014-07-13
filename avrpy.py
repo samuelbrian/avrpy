@@ -7,6 +7,11 @@ from serial.tools.list_ports import comports
 from piper import Piper
 from helper import uint8, uint16, uint8R, uint16R, to_int
 
+def _BV(bit): return 1 << bit
+# Bitwise invert because Python's ~ is signed two's complement
+def invert(num): return ~num & 0xFFFF
+def invert8(num): return ~num & 0xFF
+
 class AVRPy:
 
     # Pipe addresses
@@ -244,6 +249,9 @@ class AVRPy:
     def bit_is_clear(self, sfr, bit):
         return not self.bit_is_set(sfr, bit)
 
+    def ptr(self, register_name):
+        return Register(self, register_name)
+
     ## Enable the interrupt packet being generated on the microcontroller.
     def enableInterrupt(self, index):
         if isinstance(index, str): index = self._vector_indices[index]
@@ -266,6 +274,19 @@ class AVRPy:
         return s
 
 
+class Register:
+
+    def __init__(self, avr, register_name):
+        self.avr = avr
+        self.register = register_name
+
+    def set(self, value):
+        self.avr.__setattr__(self.register, value)
+
+    def get(self):
+        return self.avr.__setattr__(self.register)
+
+
 # To allow built-in hasattr() to be overridden. See AVRPy.__hasattr__() for an explanation.
 # From http://code.activestate.com/lists/python-list/14972/
 def hasattr(o, a, orig_hasattr=hasattr):
@@ -273,11 +294,6 @@ def hasattr(o, a, orig_hasattr=hasattr):
         return o.__hasattr__(a)
     return orig_hasattr(o, a)
 __builtins__.hasattr = hasattr
-
-def _BV(bit): return 1 << bit
-# Bitwise invert because Python's ~ is signed two's complement
-def invert(num): return ~num & 0xFFFF
-def invert8(num): return ~num & 0xFF
 
 
 
