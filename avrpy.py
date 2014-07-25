@@ -71,49 +71,58 @@ class AVRPy:
         import re
         with open(header_filename, "r") as file:
             for line in file:
-                if not line.startswith("#define "): continue
-                spl = line.strip().split(" ")
+
+                #if not line.startswith("#define "): continue
+                matches = re.search("#\s*define\s+", line)
+                if matches is None: continue
+                spl = line.replace(matches.group(0), "")
+                same = False
+                while same:
+                    pspl = spl
+                    spl = spl.replace("  ", " ")
+                    same = pspl == spl
+                spl = spl.strip().split(" ")
 
                 # Constants with no value
-                if len(spl) < 3:
-                    self._constants[spl[1]] = None
+                if len(spl) < 2:
+                    self._constants[spl[0]] = None
                     continue
 
                 # IO8 registers
-                matches = re.search("_SFR_IO8\((.+)\)", spl[2])
+                matches = re.search("_SFR_IO8\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_IO8[spl[1]] = to_int(matches.groups()[0])
+                    self._SFR_IO8[spl[0]] = to_int(matches.groups()[0])
                     continue
 
                 # IO16 registers
-                matches = re.search("_SFR_IO16\((.+)\)", spl[2])
+                matches = re.search("_SFR_IO16\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_IO16[spl[1]] = to_int(matches.groups()[0])
+                    self._SFR_IO16[spl[0]] = to_int(matches.groups()[0])
                     continue
 
                 # MEM8 registers
-                matches = re.search("_SFR_MEM8\((.+)\)", spl[2])
+                matches = re.search("_SFR_MEM8\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_MEM8[spl[1]] = to_int(matches.groups()[0])
+                    self._SFR_MEM8[spl[0]] = to_int(matches.groups()[0])
                     continue
 
                 # MEM16 registers
-                matches = re.search("_SFR_MEM16\((.+)\)", spl[2])
+                matches = re.search("_SFR_MEM16\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_MEM16[spl[1]] = to_int(matches.groups()[0])
+                    self._SFR_MEM16[spl[0]] = to_int(matches.groups()[0])
                     continue
 
                 # Interrupt vectors
                 matches = re.search("_VECTOR\((.+)\)", line)
                 if matches is not None:
                     index = to_int(matches.groups()[0])
-                    self._vector_indices[spl[1]] = index
+                    self._vector_indices[spl[0]] = index
                     self._vect[index] = None
                     continue
 
                 # Other constants
                 try:
-                    self._constants[spl[1]] = to_int(spl[2])
+                    self._constants[spl[0]] = to_int(spl[1])
                     continue
                 except:
                     pass
@@ -296,12 +305,11 @@ def hasattr(o, a, orig_hasattr=hasattr):
 __builtins__.hasattr = hasattr
 
 
-
-
 # # Testing...
-avr = AVRPy()
-avr.parse("avrheaders/iom32u4.h")
-avr.connect()
+# avr = AVRPy()
+# avr.parse("avrheaders/iom32u4.h")
+# avr.parse("avrheaders/portpins.h")
+# avr.connect()
 #
 # # Play with INT0 on PIND0
 # avr.DDRD &= ~(1 << avr.DDD0)
