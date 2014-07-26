@@ -1,7 +1,7 @@
 """
 Helper functions and classes.
 
-@author Samuel Brian
+Samuel Brian
 """
 
 from struct import pack, unpack

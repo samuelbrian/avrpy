@@ -1,54 +1,60 @@
-__author__ = 'samuel'
+"""
+leonardo.py
+A port of the constants and macros in the Arduino Leonardo's 'pins_arduino.h' header.
 
-from avrpy import *
+Samuel Brian
+"""
+
+from avr import _BV
 
 class Leonardo:
 
-    NUM_DIGITAL_PINS  = 30
-    NUM_ANALOG_INPUTS = 12
-
-    # Mapping of analog pins as digital I/O
-    # A6-A11 share with digital pins
-    A0 = 18
-    A1 = 19
-    A2 = 20
-    A3 = 21
-    A4 = 22
-    A5 = 23
-    A6 = 24	    # D4
-    A7 = 25	    # D6
-    A8 = 26	    # D8
-    A9 = 27	    # D9
-    A10 = 28	# D10
-    A11 = 29	# D12
-
-    SDA = 2
-    SCL = 3
-    LED_BUILTIN = 13
-
-    # Map SPI port to 'new' pins D14..D17
-    SS   = 17
-    MOSI = 16
-    MISO = 14
-    SCK  = 15
-
-    PB = 2
-    PC = 3
-    PD = 4
-    PE = 5
-    PF = 6
-
-    NOT_A_PORT = None
-    NOT_ON_TIMER = None
-    NOT_AN_INTERRUPT = None
-
     def __init__(self, avr):
         self.avr = avr
+        avr.F_CPU = 16000000
 
-        ### Ported from leonardo/pins_arduino.h:
+        self.NUM_DIGITAL_PINS  = 30
+        self.NUM_ANALOG_INPUTS = 12
+
+        # Mapping of analog pins as digital I/O
+        # A6-A11 share with digital pins
+        self.A0 = 18
+        self.A1 = 19
+        self.A2 = 20
+        self.A3 = 21
+        self.A4 = 22
+        self.A5 = 23
+        self.A6 = 24	    # D4
+        self.A7 = 25	    # D6
+        self.A8 = 26	    # D8
+        self.A9 = 27	    # D9
+        self.A10 = 28	    # D10
+        self.A11 = 29	    # D12
+
+        self.SDA = 2
+        self.SCL = 3
+        self.LED_BUILTIN = 13
+
+        # Map SPI port to 'new' pins D14..D17
+        self.SS   = 17
+        self.MOSI = 16
+        self.MISO = 14
+        self.SCK  = 15
+
+        # These are actually defined in Arduino.h
+        self.PB = 2
+        self.PC = 3
+        self.PD = 4
+        self.PE = 5
+        self.PF = 6
+        self.NOT_A_PORT = 0
+        self.NOT_A_PIN = 0
+        self.NOT_ON_TIMER = 0
+        self.NOT_AN_INTERRUPT = -1
+
         self.port_to_mode_PGM = [
-            Leonardo.NOT_A_PORT,
-            Leonardo.NOT_A_PORT,
+            self.NOT_A_PORT,
+            self.NOT_A_PORT,
             avr.ptr("DDRB"),
             avr.ptr("DDRC"),
             avr.ptr("DDRD"),
@@ -57,8 +63,8 @@ class Leonardo:
         ]
 
         self.port_to_output_PGM = [
-            Leonardo.NOT_A_PORT,
-            Leonardo.NOT_A_PORT,
+            self.NOT_A_PORT,
+            self.NOT_A_PORT,
             avr.ptr("PORTB"),
             avr.ptr("PORTC"),
             avr.ptr("PORTD"),
@@ -67,8 +73,8 @@ class Leonardo:
         ]
 
         self.port_to_input_PGM = [
-            Leonardo.NOT_A_PORT,
-            Leonardo.NOT_A_PORT,
+            self.NOT_A_PORT,
+            self.NOT_A_PORT,
             avr.ptr("PINB"),
             avr.ptr("PINC"),
             avr.ptr("PIND"),
@@ -77,40 +83,40 @@ class Leonardo:
         ]
 
         self.digital_pin_to_port_PGM = [
-            Leonardo.PD, # D0 - PD2
-            Leonardo.PD,	# D1 - PD3
-            Leonardo.PD, # D2 - PD1
-            Leonardo.PD,	# D3 - PD0
-            Leonardo.PD,	# D4 - PD4
-            Leonardo.PC, # D5 - PC6
-            Leonardo.PD, # D6 - PD7
-            Leonardo.PE, # D7 - PE6
+            self.PD, # D0 - PD2
+            self.PD,	# D1 - PD3
+            self.PD, # D2 - PD1
+            self.PD,	# D3 - PD0
+            self.PD,	# D4 - PD4
+            self.PC, # D5 - PC6
+            self.PD, # D6 - PD7
+            self.PE, # D7 - PE6
 
-            Leonardo.PB, # D8 - PB4
-            Leonardo.PB,	# D9 - PB5
-            Leonardo.PB, # D10 - PB6
-            Leonardo.PB,	# D11 - PB7
-            Leonardo.PD, # D12 - PD6
-            Leonardo.PC, # D13 - PC7
+            self.PB, # D8 - PB4
+            self.PB,	# D9 - PB5
+            self.PB, # D10 - PB6
+            self.PB,	# D11 - PB7
+            self.PD, # D12 - PD6
+            self.PC, # D13 - PC7
 
-            Leonardo.PB,	# D14 - MISO - PB3
-            Leonardo.PB,	# D15 - SCK - PB1
-            Leonardo.PB,	# D16 - MOSI - PB2
-            Leonardo.PB,	# D17 - SS - PB0
+            self.PB,	# D14 - MISO - PB3
+            self.PB,	# D15 - SCK - PB1
+            self.PB,	# D16 - MOSI - PB2
+            self.PB,	# D17 - SS - PB0
 
-            Leonardo.PF,	# D18 - A0 - PF7
-            Leonardo.PF, # D19 - A1 - PF6
-            Leonardo.PF, # D20 - A2 - PF5
-            Leonardo.PF, # D21 - A3 - PF4
-            Leonardo.PF, # D22 - A4 - PF1
-            Leonardo.PF, # D23 - A5 - PF0
+            self.PF,	# D18 - A0 - PF7
+            self.PF, # D19 - A1 - PF6
+            self.PF, # D20 - A2 - PF5
+            self.PF, # D21 - A3 - PF4
+            self.PF, # D22 - A4 - PF1
+            self.PF, # D23 - A5 - PF0
 
-            Leonardo.PD, # D24 / D4 - A6 - PD4
-            Leonardo.PD, # D25 / D6 - A7 - PD7
-            Leonardo.PB, # D26 / D8 - A8 - PB4
-            Leonardo.PB, # D27 / D9 - A9 - PB5
-            Leonardo.PB, # D28 / D10 - A10 - PB6
-            Leonardo.PD, # D29 / D12 - A11 - PD6
+            self.PD, # D24 / D4 - A6 - PD4
+            self.PD, # D25 / D6 - A7 - PD7
+            self.PB, # D26 / D8 - A8 - PB4
+            self.PB, # D27 / D9 - A9 - PB5
+            self.PB, # D28 / D10 - A10 - PB6
+            self.PD, # D29 / D12 - A11 - PD6
         ]
 
         self.digital_pin_to_bit_mask_PGM = [
@@ -151,40 +157,40 @@ class Leonardo:
         ]
 
         self.digital_pin_to_timer_PGM = [
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
             avr.ptr("TIMER0B"),		# 3
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
             avr.ptr("TIMER3A"),		# 5
             avr.ptr("TIMER4D"),		# 6
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
 
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
             avr.ptr("TIMER1A"),		# 9
             avr.ptr("TIMER1B"),		# 10
             avr.ptr("TIMER0A"),		# 11
 
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
             avr.ptr("TIMER4A"),		# 13
 
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
 
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER,
-            Leonardo.NOT_ON_TIMER
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER,
+            self.NOT_ON_TIMER
         ]
 
         self.analog_pin_to_channel_PGM = [
@@ -203,16 +209,16 @@ class Leonardo:
         ]
 
     # Macros from pins_arduino.h
-    def digitalPinToPCICR(self, p): return self.avr.ptr("PCICR") if (((p) >= 8 and (p) <= 11) or ((p) >= 14 and (p) <= 17) or ((p) >= Leonardo.A8 and (p) <= Leonardo.A10)) else None
+    def digitalPinToPCICR(self, p): return self.avr.ptr("PCICR") if (((p) >= 8 and (p) <= 11) or ((p) >= 14 and (p) <= 17) or ((p) >= self.A8 and (p) <= self.A10)) else None
     def digitalPinToPCICRbit(self, p): return 0
-    def digitalPinToPCMSK(self, p): return self.avr.ptr("PCMSK0") if (((p) >= 8 and (p) <= 11) or ((p) >= 14 and (p) <= 17) or ((p) >= Leonardo.A8 and (p) <= Leonardo.A10)) else None
+    def digitalPinToPCMSK(self, p): return self.avr.ptr("PCMSK0") if (((p) >= 8 and (p) <= 11) or ((p) >= 14 and (p) <= 17) or ((p) >= self.A8 and (p) <= self.A10)) else None
     def digitalPinToPCMSKbit(self, p):
         if (p) >= 8 and (p) <= 11: return (p) - 4
         elif (p) == 14: return 3
         elif (p) == 15: return 1
         elif (p) == 16: return 2
         elif (p) == 17: return 0
-        else: return p - Leonardo.A8 + 4
+        else: return p - self.A8 + 4
     def analogPinToChannel(self, P): return self.analog_pin_to_channel_PGM[P]
     def digitalPinToInterrupt(self, p):
         if (p) == 0: return 2
@@ -220,4 +226,4 @@ class Leonardo:
         elif (p) == 2: return 1
         elif (p) == 3: return 0
         elif (p) == 7: return 4
-        else: return Leonardo.NOT_AN_INTERRUPT
+        else: return self.NOT_AN_INTERRUPT
