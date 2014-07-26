@@ -204,7 +204,8 @@ class AVR:
         elif write_token == AVR.WRITE_IO16 or write_token == AVR.WRITE_MEM16: packet += uint16(value)
         self._piper.write_packet(AVR.REGISTER_PIPE, packet)
 
-    def define(self, name, value):
+    # Replacement for #define macro
+    def define(self, name, value=None):
         if value in object.__getattribute__(self, "_SFR_IO8"):
             self._aliases[name] = (self._SFR_IO8[value], AVR.READ_IO8, AVR.WRITE_IO8)
         elif value in object.__getattribute__(self, "_SFR_IO16"):
@@ -216,12 +217,14 @@ class AVR:
         else:
             self._constants[name] = value
 
+    # Replacement for #undef macro
     def undef(self, name):
         try: del self._constants[name]
         except: pass
         try: del self._aliases[name]
         except: pass
 
+    # Replacement for #defined macro
     def defined(self, item):
         return self.is_register(item) or self.is_constant(item)
 

@@ -5,13 +5,24 @@ A port of the constants and macros in the Arduino Leonardo's 'pins_arduino.h' he
 Samuel Brian
 """
 
-from avr import _BV
+from avr import AVR, _BV
+from arduino import Arduino
 
-class Leonardo:
+class Leonardo(Arduino):
+    def __init__(self, avr=None):
+        if avr is None:
+            avr = AVR()
+            avr.parse("avrheaders/iom32u4.h")
+            avr.parse("avrheaders/portpins.h")
+            avr.connect()
+        super().__init__(LeonardoBoard(avr))
+
+class LeonardoBoard:
 
     def __init__(self, avr):
         self.avr = avr
-        avr.F_CPU = 16000000
+        avr.define("F_CPU", 16000000)
+        avr.define("__AVR_ATmega32U4__")
 
         self.NUM_DIGITAL_PINS  = 30
         self.NUM_ANALOG_INPUTS = 12

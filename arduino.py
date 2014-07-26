@@ -7,23 +7,14 @@ Samuel Brian
 
 from avr import *
 
+# Defined in Arduino.h
 HIGH = 0x1
 LOW  = 0x0
-
 INPUT        = 0x0
 OUTPUT       = 0x1
 INPUT_PULLUP = 0x2
-
-PI         = 3.1415926535897932384626433832795
-HALF_PI    = 1.5707963267948966192313216916398
-TWO_PI     = 6.283185307179586476925286766559
-DEG_TO_RAD = 0.017453292519943295769236907684886
-RAD_TO_DEG = 57.295779513082320876798154814105
-EULER      = 2.718281828459045235360287471352
-
 LSBFIRST = 0
 MSBFIRST = 1
-
 CHANGE  = 1
 FALLING = 2
 RISING  = 3
@@ -33,6 +24,22 @@ class Arduino:
     def __init__(self, board):
         self.board = board
         self.avr = board.avr
+
+        # Defined in Arduino.h
+        if self.avr.defined("__AVR_ATtiny24__") or self.avr.defined("__AVR_ATtiny44__") or self.avr.defined("__AVR_ATtiny84__") or self.avr.defined("__AVR_ATtiny25__") or self.avr.defined("__AVR_ATtiny45__") or self.avr.defined("__AVR_ATtiny85__"):
+            self.DEFAULT  = 0
+            self.EXTERNAL = 1
+            self.INTERNAL = 2
+        else:
+            if self.avr.defined("__AVR_ATmega1280__") or self.avr.defined("__AVR_ATmega2560__") or self.avr.defined("__AVR_ATmega1284__") or self.avr.defined("__AVR_ATmega1284P__") or self.avr.defined("__AVR_ATmega644__") or self.avr.defined("__AVR_ATmega644A__") or self.avr.defined("__AVR_ATmega644P__") or self.avr.defined("__AVR_ATmega644PA__"):
+                self.INTERNAL1V1  = 2
+                self.INTERNAL2V56 = 3
+            else:
+                self.INTERNAL     = 3
+            self.DEFAULT  = 1
+            self.EXTERNAL = 0
+
+        self.analog_reference = self.DEFAULT
 
     def clockCyclesPerMicrosecond(self): return self.avr.F_CPU / 1000000
     def clockCyclesToMicroseconds(self, a): return a / self.clockCyclesPerMicrosecond()
@@ -44,7 +51,7 @@ class Arduino:
     #define bitWrite(self, value, bit, bitvalue) (bitvalue ? bitSet(value, bit) : bitClear(value, bit))
 
     def lowByte(w): return (w) & 0xff
-    def highByte(w): return ((w) >> 8)
+    def highByte(w): return (w) >> 8
 
     # void init(void);
 
@@ -116,8 +123,61 @@ class Arduino:
         return LOW
 
     # Implemented in wiring_analog.c
-    # int analogRead(uint8_t);
-    # void analogReference(uint8_t mode);
+    def analogRead(self, pin):
+
+        if "analogPinToChannel" in dir(self.board):
+            if self.avr.defined("__AVR_ATmega32U4__"):
+                if (pin >= 18): pin -= 18 # allow for channel or pin numbers
+            pin = self.board.analogPinToChannel(pin)
+        elif self.avr.defined("__AVR_ATmega1280__") or self.avr.defined("__AVR_ATmega2560__"):
+            if (pin >= 54): pin -= 54 # allow for channel or pin numbers
+        elif self.avr.defined("__AVR_ATmega32U4__"):
+            if (pin >= 18): pin -= 18 # allow for channel or pin numbers
+        elif self.avr.defined("__AVR_ATmega1284__") or self.avr.defined("__AVR_ATmega1284P__") or self.avr.defined("__AVR_ATmega644__") or self.avr.defined("__AVR_ATmega644A__") or self.avr.defined("__AVR_ATmega644P__") or self.avr.defined("__AVR_ATmega644PA__"):
+            if (pin >= 24): pin -= 24 # allow for channel or pin numbers
+        else:
+            if (pin >= 14): pin -= 14 # allow for channel or pin numbers
+
+        if self.avr.defined("ADCSRB") and self.avr.defined("MUX5"):
+            # the MUX5 bit of ADCSRB selects whether we're reading from channels
+            # 0 to 7 (MUX5 low) or 8 to 15 (MUX5 high).
+            self.avr.ADCSRB = (self.avr.ADCSRB & invert(1 << self.avr.MUX5)) | (((pin >> 3) & 0x01) << self.avr.MUX5)
+
+        if self.avr.defined("ADMUX"):
+            # set the analog reference (high two bits of ADMUX) and select the
+            # channel (low 4 bits).  this also sets ADLAR (left-adjust result)
+            # to 0 (the default).
+            self.avr.ADMUX = (self.analog_reference << 6) | (pin & 0x07)
+
+        # without a delay, we seem to read from the wrong channel
+        #delay(1);
+
+        if self.avr.defined("ADCSRA") and self.avr.defined("ADCL"):
+            # start the conversion
+            self.avr.sbi("ADCSRA", self.avr.ADSC)
+
+            # ADSC is cleared when the conversion finishes
+            while (self.avr.bit_is_set("ADCSRA", self.avr.ADSC)): pass
+
+            # we have to read ADCL first; doing so locks both ADCL
+            # and ADCH until ADCH is read.  reading ADCL second would
+            # cause the results of each conversion to be discarded,
+            # as ADCL and ADCH would be locked when it completed.
+            low  = self.avr.ADCL
+            high = self.avr.ADCH
+        else:
+            # we dont have an ADC, return 0
+            low  = 0
+            high = 0
+
+        # combine the two bytes
+        return (high << 8) | low
+
+    # Implemented in wiring_analog.c
+    def analogReference(self, mode):
+        self.analog_reference = mode
+
+    # Implemented in wiring_analog.c
     # void analogWrite(uint8_t, int);
 
     # unsigned long millis(void);
