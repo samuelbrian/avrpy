@@ -1,4 +1,3 @@
-from arduino import *
 from leonardo import *
 
 # The long initialisation
