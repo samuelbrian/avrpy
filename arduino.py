@@ -6,6 +6,7 @@ Samuel Brian
 """
 
 from avr import *
+from time import sleep, time
 
 # Defined in Arduino.h
 HIGH = 0x1
@@ -81,6 +82,7 @@ class Arduino:
             self.EXTERNAL = 0
 
         self.analog_reference = self.DEFAULT
+        self.start_time_sec = time()  # seconds
 
     def clockCyclesPerMicrosecond(self):
         return self.avr.F_CPU / 1000000
@@ -106,7 +108,7 @@ class Arduino:
 
     # void init(void);
 
-    # Implemented in wiring_digital.c
+    # Implementation from wiring_digital.c
     def pinMode(self, pin, mode):
         bit = self.digitalPinToBitMask(pin)
         port = self.digitalPinToPort(pin)
@@ -134,7 +136,7 @@ class Arduino:
             reg.set(reg.get() | bit)  # *reg |= bit;
         ##self.avr.SREG = oldSREG
 
-    # Implemented in wiring_digital.c
+    # Implementation from wiring_digital.c
     def digitalWrite(self, pin, val):
         timer = self.digitalPinToTimer(pin)
         bit = self.digitalPinToBitMask(pin)
@@ -158,7 +160,7 @@ class Arduino:
 
         ##self.avr.SREG = oldSREG
 
-    # Implemented in wiring_digital.c
+    # Implementation from wiring_digital.c
     def digitalRead(self, pin):
         timer = self.digitalPinToTimer(pin)
         bit = self.digitalPinToBitMask(pin)
@@ -173,7 +175,7 @@ class Arduino:
         if self.portInputRegister(port).get() & bit: return HIGH
         return LOW
 
-    # Implemented in wiring_digital.c
+    # Implementation from wiring_digital.c
     def turnOffPWM(self, timer):
         if self.avr.defined("TCCR1A") and self.avr.defined("COM1A1"):
             if timer == Arduino.TIMER1A: self.avr.cbi("TCCR1A", self.avr.COM1A1)
@@ -222,7 +224,7 @@ class Arduino:
             if timer == Arduino.TIMER5B: self.avr.cbi("TCCR5A", self.avr.COM5B1)
             if timer == Arduino.TIMER5C: self.avr.cbi("TCCR5A", self.avr.COM5C1)
 
-    # Implemented in wiring_analog.c
+    # Implementation from wiring_analog.c
     def analogRead(self, pin):
 
         if "analogPinToChannel" in dir(self.board):
@@ -275,11 +277,11 @@ class Arduino:
         # combine the two bytes
         return (high << 8) | low
 
-    # Implemented in wiring_analog.c
+    # Implementation from wiring_analog.c
     def analogReference(self, mode):
         self.analog_reference = mode
 
-    # Implemented in wiring_analog.c
+    # Implementation from wiring_analog.c
     # void analogWrite(uint8_t, int);
     def analogWrite(self, pin, val):
 
@@ -434,17 +436,47 @@ class Arduino:
                     self.avr.OCR5C = val  # set pwm duty
                     return
 
+    # The Arduino time functions (implemented in wiring.c) rely on local variables updated in the TIMER0_OVF ISR and
+    # can't be accessed through the SFR bridge. Plus, the overhead with the serial communication would make timing
+    # very difficult. So here are Python implementations of the time functions:
+    def millis(self):
+        return (time() - self.start_time_sec)*1000.0
 
-    # unsigned long millis(void);
-    # unsigned long micros(void);
-    # void delay(unsigned long);
-    # void delayMicroseconds(unsigned int us);
+    def micros(self):
+        return (time() - self.start_time_sec)*1000000.0
+
+    def delay(self, ms):
+        sleep(ms/1000.0)
+
+    def delayMicroseconds(self, us):
+        sleep(us/1000000.0)
+
     # unsigned long pulseIn(uint8_t pin, uint8_t state, unsigned long timeout);
-    #
-    # void shiftOut(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder, uint8_t val);
-    # uint8_t shiftIn(uint8_t dataPin, uint8_t clockPin, uint8_t bitOrder);
 
-    # Implemented in WInterrupts.c
+    # Implementation from wiring_shift.c
+    def shiftOut(self, dataPin, clockPin, bitOrder, val):
+        for i in range(0, 8):
+            if (bitOrder == LSBFIRST):
+                self.digitalWrite(dataPin, not not (val & (1 << i)))
+            else:
+                self.digitalWrite(dataPin, not not (val & (1 << (7 - i))))
+
+            self.digitalWrite(clockPin, HIGH)
+            self.digitalWrite(clockPin, LOW)
+
+    # Implementation from wiring_shift.c
+    def shiftIn(self, dataPin, clockPin, bitOrder):
+        value = 0
+        for i in range(0, 8):
+            self.digitalWrite(clockPin, HIGH)
+            if (bitOrder == LSBFIRST):
+                value |= self.digitalRead(dataPin) << i
+            else:
+                value |= self.digitalRead(dataPin) << (7 - i)
+            self.digitalWrite(clockPin, LOW)
+        return value
+
+    # Implementation from WInterrupts.c
     # void attachInterrupt(uint8_t, void (*)(void), int mode);
     # void detachInterrupt(uint8_t);
 
