@@ -8,12 +8,14 @@ Samuel Brian
 from serial import Serial
 from serial.tools.list_ports import comports
 from piper import Piper
-from helper import uint8, uint16, uint8R, uint16R, to_int
+from struct import pack, unpack
+
 
 def _BV(bit): return 1 << bit
 # Bitwise invert because Python's ~ is signed two's complement
 def invert(num): return ~num & 0xFFFF
 def invert8(num): return ~num & 0xFF
+
 
 class AVR:
 
@@ -94,38 +96,38 @@ class AVR:
                 # IO8 registers
                 matches = re.search("_SFR_IO8\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_IO8[spl[0]] = to_int(matches.groups()[0])
+                    self._SFR_IO8[spl[0]] = _to_int(matches.groups()[0])
                     continue
 
                 # IO16 registers
                 matches = re.search("_SFR_IO16\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_IO16[spl[0]] = to_int(matches.groups()[0])
+                    self._SFR_IO16[spl[0]] = _to_int(matches.groups()[0])
                     continue
 
                 # MEM8 registers
                 matches = re.search("_SFR_MEM8\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_MEM8[spl[0]] = to_int(matches.groups()[0])
+                    self._SFR_MEM8[spl[0]] = _to_int(matches.groups()[0])
                     continue
 
                 # MEM16 registers
                 matches = re.search("_SFR_MEM16\((.+)\)", spl[1])
                 if matches is not None:
-                    self._SFR_MEM16[spl[0]] = to_int(matches.groups()[0])
+                    self._SFR_MEM16[spl[0]] = _to_int(matches.groups()[0])
                     continue
 
                 # Interrupt vectors
                 matches = re.search("_VECTOR\((.+)\)", line)
                 if matches is not None:
-                    index = to_int(matches.groups()[0])
+                    index = _to_int(matches.groups()[0])
                     self._vector_indices[spl[0]] = index
                     self._vect[index] = None
                     continue
 
                 # Other constants
                 try:
-                    self._constants[spl[0]] = to_int(spl[1])
+                    self._constants[spl[0]] = _to_int(spl[1])
                     continue
                 except:
                     pass
@@ -187,21 +189,21 @@ class AVR:
         # The built-in hasattr() checks if getattr() throws an exception or not. This will cause unnecessary serial
         # communication. This overridden hasattr() does not do this.
         try:
-            return self.defined(item) or item in object.__getattribute__(self, "vectorIndices") or item in self.__dict__
+            return self.defined(item) or item in object.__getattribute__(self, "_vector_indices") or item in self.__dict__
         except:
             return item in self.__dict__
 
     def _get_value(self, address, read_token):
-        self._piper.write_packet(AVR.REGISTER_PIPE, uint8(address) + uint8(read_token))
+        self._piper.write_packet(AVR.REGISTER_PIPE, _uint8(address) + _uint8(read_token))
         value = self._piper.read_packet(AVR.REGISTER_PIPE)
-        if len(value) == 2:   return uint16R(value)
-        elif len(value) == 1: return uint8R(value)
+        if len(value) == 2:   return _uint16R(value)
+        elif len(value) == 1: return _uint8R(value)
         return -1
 
     def _set_value(self, address, value, write_token):
-        packet = uint8(address) + uint8(write_token)
-        if write_token == AVR.WRITE_IO8 or write_token == AVR.WRITE_MEM8: packet += uint8(value)
-        elif write_token == AVR.WRITE_IO16 or write_token == AVR.WRITE_MEM16: packet += uint16(value)
+        packet = _uint8(address) + _uint8(write_token)
+        if write_token == AVR.WRITE_IO8 or write_token == AVR.WRITE_MEM8: packet += _uint8(value)
+        elif write_token == AVR.WRITE_IO16 or write_token == AVR.WRITE_MEM16: packet += _uint16(value)
         self._piper.write_packet(AVR.REGISTER_PIPE, packet)
 
     # Replacement for #define macro
@@ -270,22 +272,41 @@ class AVR:
     ## Enable the interrupt packet being sent from the microcontroller.
     def enableInterrupt(self, index):
         if isinstance(index, str): index = self._vector_indices[index]
-        self._piper.write_packet(AVR.INTERRUPT_PIPE, uint8(index) + uint8(AVR.INT_ENABLE))
+        self._piper.write_packet(AVR.INTERRUPT_PIPE, _uint8(index) + _uint8(AVR.INT_ENABLE))
 
     ## Disable the interrupt packet being sent from the microcontroller.
     def disableInterrupt(self, index):
         if isinstance(index, str): index = self._vector_indices[index]
-        self._piper.write_packet(AVR.INTERRUPT_PIPE, uint8(index) + uint8(AVR.INT_DISABLE))
+        self._piper.write_packet(AVR.INTERRUPT_PIPE, _uint8(index) + _uint8(AVR.INT_DISABLE))
 
     def _handleInterrupt(self, index):
         if not self._int_enabled: return
-        index = uint8R(index)
+        index = _uint8R(index)
         if index in self._vect and self._vect[index] is not None: self._vect[index]()
 
+    # Generate a string of all the ISRs for copying into the Arduino firmware.
     def generateFirmwareISRs(self):
         s = ""
         for interrupt_name in sorted(self._vector_indices, key=self._vector_indices.get):
             s += "ISR({0}) {{ triggerInterrupt({1}); }}\n".format(interrupt_name, self._vector_indices[interrupt_name])
+        return s
+
+    # Generate a string of Python code containing all the definitions that have been parsed.
+    # This can be used e.g. in Arduino board definitions so the headers don't have to be parsed at runtime.
+    def generateDefsCode(self, varname):
+        s = ""
+        s += "{0}._SFR_IO8 = {1}\n".format(varname, str(self._SFR_IO8))
+        s += "{0}._SFR_IO16 = {1}\n".format(varname, str(self._SFR_IO16))
+        s += "{0}._SFR_MEM8 = {1}\n".format(varname, str(self._SFR_MEM8))
+        s += "{0}._SFR_MEM16 = {1}\n".format(varname, str(self._SFR_MEM16))
+        s += "{0}._constants = {1}\n".format(varname, str(self._constants))
+        vect = self._vect
+        self._vect = {}
+        for key in vect.keys(): self._vect[key] = None
+        s += "{0}._vect = {1}\n".format(varname, str(self._vect))
+        self._vect = vect
+        s += "{0}._vector_indices = {1}\n".format(varname, str(self._vector_indices))
+        s += "{0}._aliases = {1}\n".format(varname, str(self._aliases))
         return s
 
 
@@ -310,3 +331,14 @@ def hasattr(o, a, orig_hasattr=hasattr):
     return orig_hasattr(o, a)
 __builtins__['hasattr'] = hasattr
 
+
+# Some private convenience methods...
+def _to_int(string): return int(string, 16) if "x" in string else int(string, 10)
+## Pack an integer number into a uint8 (1 byte string).
+def _uint8(num): return pack("<B", max(min(num, 0xFF), 0x00))
+## Pack an integer number into a uint16 (2 byte string).
+def _uint16(num): return pack("<H", max(min(num, 0xFFFF), 0x0000))
+## Unpack a uint8 (1 byte string) into an int.
+def _uint8R(num): return unpack("<B", num)[0]
+## Unpack a uint16 (2 byte string) into an int.
+def _uint16R(num): return unpack("<H", num)[0]
