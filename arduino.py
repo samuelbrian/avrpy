@@ -8,7 +8,7 @@ Samuel Brian
 from avr import *
 from time import sleep, time
 
-# Defined in Arduino.h
+# Defined in Arduino.h - here globally for convenience
 HIGH = 0x1
 LOW = 0x0
 INPUT = 0x0
@@ -23,8 +23,7 @@ RISING = 3
 
 class Arduino:
 
-    # Defined in Arduino.h
-    # TODO: use avr.define() to put them with all the other defines
+    # Defined in Arduino.h - here instead of avr #define because they need to be accessed statically by board classes.
     TIMER0A = 1
     TIMER0B = 2
     TIMER1A = 3
@@ -96,7 +95,7 @@ class Arduino:
         self.analog_reference = self.DEFAULT
         self.start_time_sec = time()  # seconds
 
-        self.init()
+        #self.init()
 
     def clockCyclesPerMicrosecond(self):
         return self.avr.F_CPU / 1000000

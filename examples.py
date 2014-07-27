@@ -1,31 +1,43 @@
 from leonardo import *
 
-# The long initialisation
+#### The long initialisation.
 avr = AVR()
 avr.parse("avrheaders/iom32u4.h")
 avr.parse("avrheaders/portpins.h")
-avr.connect()
 leo = LeonardoBoard(avr)
 ard = Arduino(leo)
+avr.connect()
+# Do stuff here...
 avr.disconnect()
 
-# The short initialisation
+#### The short initialisation.
 ard = Leonardo()
-avr = ard.avr
+ard.connect()
 
-# Turn the Leonardo's LED on (PC7, Arduino pin 13)
-avr.DDRC  |= (1 << avr.DDD7)
-avr.PORTC |= (1 << avr.PORTD7)
+#### Read and write registers.
+print(ard.OCR1A)
+ard.TIMSK0 = 0x0F
 
-# Or use the equivalent Arduino code
-ard.pinMode(13, OUTPUT)
-ard.digitalWrite(13, HIGH)
+#### Get a register "pointer" for passing around.
+ptr = ard.ptr("DDRD")   # ptr = &DDRD;
+ptr.set(0xF0)           # *ptr = 0xF0;
+print(ptr.get())
 
-# ard.pinMode(ard.board.A0, INPUT)
-#print(ard.analogRead(ard.board.A0))
+##### Turn on the Leonardo's built-in LED (on PC7 a.k.a. Pin 13).
+ard.DDRC  |= (1 << ard.DDD7)
+ard.PORTC |= (1 << ard.PORTD7)
 
-LED_PIN = 13
-ard.pinMode(LED_PIN, OUTPUT)
+# Or use the equivalent Arduino code.
+ard.pinMode(ard.LED_BUILTIN, OUTPUT)
+ard.digitalWrite(ard.LED_BUILTIN, HIGH)
+
+#### Read an ADC pin.
+ard.pinMode(ard.A0, INPUT)
+print(ard.analogRead(ard.A0))
+
+#### Use interrupts.
+
+# Write a function...
 x = 0
 busy = False
 def cb():
@@ -35,18 +47,17 @@ def cb():
     x += 10
     if x > 255: x = 0
     print("x=" + str(x))
-    ard.analogWrite(LED_PIN, x)
+    ard.analogWrite(ard.LED_BUILTIN, x)
     sleep(0.1)
     busy = False
 
+# Attach it to INT0 (on PIND0)
+ard.DDRD  &= invert(1 << ard.DDD0)    # Set as input. Use invert() rather than ~operator.
+ard.PORTD |= (1 << ard.PORTD0)        # Set as pullup.
+ard.EICRA |= (1 << ard.ISC60)         # Set interrupt condition.
+ard.EIMSK |= (1 << ard.INT6)          # Enable interrupt.
+ard.INT6_vect = cb                    # Attach the callback function to the ISR.
 
-# # Play with INT0 on PIND0
-# avr.DDRD  &= invert(1 << avr.DDD0)  # input
-# avr.PORTD |= (1 << avr.PORTD0)      # pullup
-# avr.EICRA |= (1 << avr.ISC60)
-# avr.EIMSK |= (1 << avr.INT6)
-# avr.INT6_vect = cb
-
-# Pin 7 is Interrupt 4
+# Or do it the Arduino way - pin 7 is Interrupt 4 (INT0)
 ard.pinMode(7, INPUT_PULLUP)
 ard.attachInterrupt(4, cb, CHANGE)

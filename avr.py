@@ -35,7 +35,7 @@ class AVR:
     INT_ENABLE      = 0x01
     INT_DISABLE     = 0x00
 
-    def __init__(self, port=0):
+    def __init__(self):
         self._frozen = False    # flag to allow/disallow setting attributes
         self._SFR_IO8 = {}      # IO8 register map
         self._SFR_IO16 = {}     # IO16 register map
@@ -70,6 +70,7 @@ class AVR:
 
     def disconnect(self):
         self._piper.close()
+        self._piper = None
 
     ## Parse an AVR register header (e.g. iom32u4.h for the ATmega32U4).
     def parse(self, header_filename):
@@ -168,6 +169,7 @@ class AVR:
             object.__setattr__(self, item, value)
 
     def __getattr__(self, item):
+        if self._piper == None: raise Exception("Not connected to an AVR.")
         if item in object.__getattribute__(self, "_SFR_IO8"):
             return self._get_value(self._SFR_IO8[item], AVR.READ_IO8)
         if item in object.__getattribute__(self, "_SFR_IO16"):
