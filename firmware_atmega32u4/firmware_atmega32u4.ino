@@ -45,16 +45,20 @@ void loop() {
     //piper.start();
     cli();
     if (triggeredInterruptsIndex > 0) {
-        //digitalWrite(13, !digitalRead(13));
         uint8_t vectorNumber = triggeredInterruptsQueue[--triggeredInterruptsIndex];
-        //asm volatile ("" : : : "memory");
         //sei();
         piper.writePacket(INTERRUPT_PIPE, &vectorNumber, 1);
         //piper.writePacket(INTERRUPT_PIPE, (uint8_t*)&triggeredInterruptsIndex, 1);
-        //cli();
     }
     sei();
     if (Serial.available()) piper.readPacketFromStream();
+}
+
+void triggerInterrupt(uint8_t vectorNumber) {
+    if (interruptEnabled[vectorNumber] == INT_ENABLE && triggeredInterruptsIndex < MAX_INTERRUPT_QUEUE) {
+        //digitalWrite(13, !digitalRead(13));
+        triggeredInterruptsQueue[triggeredInterruptsIndex++] = vectorNumber;
+    }
 }
 
 void registerPipeRead(Stream& packet) {
@@ -95,12 +99,6 @@ void registerPipeRead(Stream& packet) {
 
 void interruptPipeRead(Stream& packet) {
     interruptEnabled[packet.read()] = packet.read();
-}
-
-void triggerInterrupt(uint8_t vectorNumber) {
-    if (interruptEnabled[vectorNumber] == INT_ENABLE && triggeredInterruptsIndex < MAX_INTERRUPT_QUEUE) {
-        triggeredInterruptsQueue[triggeredInterruptsIndex++] = vectorNumber;
-    }
 }
 
 ISR(INT0_vect) { triggerInterrupt(1); }

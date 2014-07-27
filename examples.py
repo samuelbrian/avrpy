@@ -35,13 +35,19 @@ print(ard.analogRead(ard.board.A0))
 
 ard.pinMode(13, OUTPUT)
 x = 0
+busy = False
 def cb():
-    global x
-    print("x=" + str(x))
+    global x, busy
+    if busy: return
+    busy = True
     x += 10
     if x > 255: x = 0
+    print("x=" + str(x))
     ard.analogWrite(13, x)
+    sleep(0.1)
+    busy = False
 
-#
-# ard.pinMode(7, INPUT_PULLUP)
-# ard.attachInterrupt(4, cb, CHANGE)
+
+
+ard.pinMode(7, INPUT_PULLUP)
+ard.attachInterrupt(4, cb, CHANGE)

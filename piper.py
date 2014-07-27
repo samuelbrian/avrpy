@@ -17,6 +17,7 @@ MAX_DATA_LENGTH	= 0xFF
 
 begin_byte  = PACKET_BEGIN.to_bytes(1, byteorder="big")
 end_byte    = PACKET_END.to_bytes(1, byteorder="big")
+from time import sleep
 
 
 class Piper():
@@ -85,7 +86,7 @@ class Piper():
             while self.async_start:
                 id, data = self.read_packet_from_file()
                 if id in self.async_callbacks and self.async_callbacks[id] is not None:
-                    print("cbpipe {0} data={1}".format(id, data))
+                    #print("cbpipe {0} data={1}".format(id, data))
                     Thread(target=self.async_callbacks[id], args=(data,)).start()
                 else:
                     self.add_packet_to_queue(id, data)
@@ -113,7 +114,7 @@ class Piper():
 
         # If a packet for this pipe is already in the queue, retrieve it now
         while not (pipe_id in self.read_queue and len(self.read_queue[pipe_id]) > 0):
-            pass
+            sleep(0)
         return self.read_queue[pipe_id].pop(0)
 
     """ Internal functions """
