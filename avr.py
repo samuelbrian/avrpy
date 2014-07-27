@@ -67,7 +67,7 @@ class AVR:
         return list(comports())
 
     def disconnect(self):
-        self._serial.close()
+        self._piper.close()
 
     ## Parse an AVR register header (e.g. iom32u4.h for the ATmega32U4).
     def parse(self, header_filename):
@@ -267,12 +267,12 @@ class AVR:
     def ptr(self, register_name):
         return Register(self, register_name)
 
-    ## Enable the interrupt packet being generated on the microcontroller.
+    ## Enable the interrupt packet being sent from the microcontroller.
     def enableInterrupt(self, index):
         if isinstance(index, str): index = self._vector_indices[index]
         self._piper.write_packet(AVR.INTERRUPT_PIPE, uint8(index) + uint8(AVR.INT_ENABLE))
 
-    ## Disable the interrupt packet being generated on the microcontroller.
+    ## Disable the interrupt packet being sent from the microcontroller.
     def disableInterrupt(self, index):
         if isinstance(index, str): index = self._vector_indices[index]
         self._piper.write_packet(AVR.INTERRUPT_PIPE, uint8(index) + uint8(AVR.INT_DISABLE))
@@ -280,12 +280,12 @@ class AVR:
     def _handleInterrupt(self, index):
         if not self._int_enabled: return
         index = uint8R(index)
-        if self._vect[index] is not None: self._vect[index](index)
+        if index in self._vect and self._vect[index] is not None: self._vect[index]()
 
     def generateFirmwareISRs(self):
         s = ""
         for interrupt_name in sorted(self._vector_indices, key=self._vector_indices.get):
-            s += "ISR({0}) {{ triggerInterrupt({1}); }}\n".format(interrupt_name, avr._vector_indices[interrupt_name])
+            s += "ISR({0}) {{ triggerInterrupt({1}); }}\n".format(interrupt_name, self._vector_indices[interrupt_name])
         return s
 
 

@@ -41,7 +41,7 @@ class Piper {
 		
 		/* Send the write-buffer's length and contents, and the PACKET_END token. */
 		void writeEnd();
-	
+
 		typedef void (*ReadCallback)(Stream&);
 		
 		/* Set the packet callback function for a pipe. */
@@ -55,7 +55,7 @@ class Piper {
 		
 		/* Stops the start() function after it processes the current packet. */
 		void stop();
-				
+
 		friend class PacketStream;
 		
 	private:

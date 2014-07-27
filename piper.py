@@ -5,7 +5,7 @@ Allows finite sized packets over multiple pipes in a single file-like read/write
 @author Samuel Brian
 """
 
-from threading import Lock
+from threading import Lock, Thread
 
 from helper import *
 
@@ -39,8 +39,9 @@ class Piper():
         self.async_start = False
 
         # Thread locks
-        self.read_lock = Lock()
         self.write_lock = Lock()
+
+        self.start()
 
     ## Write a packet to a pipe.
     # @param pipe_id [int] The ID of the pipe to write the packet to.
@@ -74,19 +75,28 @@ class Piper():
     # If no callback is set for the pipe ID of a read packet, it is discarded.
     # This function blocks on reading from the file.
     def start(self):
+        if not self.async_start:
+            Thread(target=self._read_thread).start()
+
+
+    def _read_thread(self):
         self.async_start = True
-        # todo: mutex here
-        while self.async_start:
-            id, data = self.read_packet_from_file()
-            if id in self.async_callbacks and self.async_callbacks[id] != None:
-               self.async_callbacks[id](data)
-            else:
-                self.add_packet_to_queue(id, data)
+        try:
+            while self.async_start:
+                id, data = self.read_packet_from_file()
+                if id in self.async_callbacks and self.async_callbacks[id] is not None:
+                    print("cbpipe {0} data={1}".format(id, data))
+                    Thread(target=self.async_callbacks[id], args=(data,)).start()
+                else:
+                    self.add_packet_to_queue(id, data)
+        except Exception as e:
+            if self.async_start: # Exception is expected when close() closes the file during a read, else reraise
+                raise e
+
 
     ## Stop the Piper reading continuously after the start() function is called.
     # For this to take effect, the start() loop must escape from the read call.
     def stop(self):
-        # todo: mutex here
         self.async_start = False
 
     """ Synchronous read API """
@@ -98,28 +108,13 @@ class Piper():
     # @param pipe_id [int] The number of the pipe to be read from.
     # @return [string|bytes] The packet's payload data.
     def read_packet(self, pipe_id):
-
         if pipe_id < 0 or pipe_id > MAX_PIPE_ID:
             raise Exception("Pipe ID ({0}) is not in valid range (between 0 and {1}.".format(pipe_id, MAX_PIPE_ID))
 
         # If a packet for this pipe is already in the queue, retrieve it now
-        if pipe_id in self.read_queue and len(self.read_queue[pipe_id]) > 0:
-            return self.read_queue[pipe_id].pop(0)
-
-        # Read packets until one for this pipe
-        while True:
-
-            read_id, read_data = self.read_packet_from_file()
-
-            if read_id == pipe_id:
-                # Found a packet for this pipe, return the data
-                return read_data
-            elif read_id in self.async_callbacks and self.async_callbacks[read_id] != None:
-                # Call the callback if there is one
-                self.async_callbacks[read_id](read_data)
-            else:
-                # Otherwise add it to the queue
-                self.add_packet_to_queue(read_id, read_data)
+        while not (pipe_id in self.read_queue and len(self.read_queue[pipe_id]) > 0):
+            pass
+        return self.read_queue[pipe_id].pop(0)
 
     """ Internal functions """
 
@@ -133,34 +128,38 @@ class Piper():
         discarded_bytes = 0
 
         while True:
-            with self.read_lock:
-                # Discard bytes until PACKET_BEGIN
+            # Discard bytes until PACKET_BEGIN
+            ch = self.read_byte()
+            while ch != uint8(PACKET_BEGIN):
+                discarded_bytes += 1
+                print(ch)
+                print("Discarding one byte waiting for PACKET_BEGIN. {0} bytes so far.".format(discarded_bytes))
+                if discarded_bytes >= self.max_discarded_bytes:
+                    raise Exception("Discarded {0} bytes. File probably isn't a Piper transmitter.".format(discarded_bytes))
                 ch = self.read_byte()
-                while ch != uint8(PACKET_BEGIN):
-                    ch = self.read_byte()
-                    discarded_bytes += 1
-                    if discarded_bytes >= self.max_discarded_bytes:
-                        raise Exception("Discarded {0} bytes. File probably isn't a Piper transmitter.".format(discarded_bytes))
 
-                # Read pipe_id
-                pipe_id = uint8R(self.read_byte())
+            # Read pipe_id
+            pipe_id = uint8R(self.read_byte())
 
-                # Read data_length
-                data_length = uint8R(self.read_byte())
+            # Read data_length
+            data_length = uint8R(self.read_byte())
 
-                # Read data
-                data = self.file.read(data_length)
+            # Read data
+            #data = self.file.read(data_length)
+            data = b''
+            while len(data) < data_length:
+                data += self.read_byte()
 
-                #print(data)
-
-                if len(data) != data_length:
-                    raise Exception("File closed.")
-
-                if self.read_byte() != uint8(PACKET_END):
-                    #print("Hey you! A packet is being discarded.")
-                    discarded_bytes += len(data) + 2
-                else:
-                    break
+            ch = self.read_byte()
+            if ch != uint8(PACKET_END):
+                discarded_bytes += len(data) + 2
+                print("pipe_id=" + str(pipe_id))
+                print("data_length=" + str(data_length))
+                print("data=" + str(data))
+                print(ch)
+                print("Packet discarded while expecting PACKET_END. {0} bytes so far.".format(discarded_bytes))
+            else:
+                break
 
         #print("read pipe {0}: {1}".format(pipe_id, data))
         return pipe_id, data
@@ -180,3 +179,8 @@ class Piper():
         if len(ch) == 0:
             raise Exception("File closed.")
         return ch
+
+    def close(self):
+        self.stop()
+        if self.file is not None:
+            self.file.close()

@@ -22,6 +22,9 @@ RISING = 3
 
 
 class Arduino:
+
+    # Defined in Arduino.h
+    # TODO: use avr.define() to put them with all the other defines
     TIMER0A = 1
     TIMER0B = 2
     TIMER1A = 3
@@ -29,7 +32,6 @@ class Arduino:
     TIMER2 = 5
     TIMER2A = 6
     TIMER2B = 7
-
     TIMER3A = 8
     TIMER3B = 9
     TIMER3C = 10
@@ -81,8 +83,20 @@ class Arduino:
             self.DEFAULT = 1
             self.EXTERNAL = 0
 
+        # Defined in wiring_private.h
+        if self.avr.defined("__AVR_ATmega1280__") or self.avr.defined("__AVR_ATmega2560__"):
+            self.EXTERNAL_NUM_INTERRUPTS = 8
+        if self.avr.defined("__AVR_ATmega1284__") or self.avr.defined("__AVR_ATmega1284P__") or self.avr.defined("__AVR_ATmega644__") or self.avr.defined("__AVR_ATmega644A__") or self.avr.defined("__AVR_ATmega644P__") or self.avr.defined("__AVR_ATmega644PA__"):
+            self.EXTERNAL_NUM_INTERRUPTS = 3
+        elif self.avr.defined("__AVR_ATmega32U4__"):
+            self.EXTERNAL_NUM_INTERRUPTS = 5
+        else:
+            self.EXTERNAL_NUM_INTERRUPTS = 2
+
         self.analog_reference = self.DEFAULT
         self.start_time_sec = time()  # seconds
+
+        self.init()
 
     def clockCyclesPerMicrosecond(self):
         return self.avr.F_CPU / 1000000
@@ -107,6 +121,139 @@ class Arduino:
         return (w) >> 8
 
     # void init(void);
+
+    # Implementation from wiring.c
+    def init(self):
+
+            # on the ATmega168, timer 0 is also used for fast hardware pwm
+            # (using phase-correct PWM would mean that timer 0 overflowed half as often
+            # resulting in different millis() behavior on the ATmega8 and ATmega168)
+        if self.avr.defined("TCCR0A") and self.avr.defined("WGM01"):
+            self.avr.sbi("TCCR0A", self.avr.WGM01)
+            self.avr.sbi("TCCR0A", self.avr.WGM00)
+
+            # set timer 0 prescale factor to 64
+        if self.avr.defined("__AVR_ATmega128__"):
+            # CPU specific: different values for the ATmega128
+            self.avr.sbi("TCCR0", self.avr.CS02)
+        elif self.avr.defined("TCCR0") and self.avr.defined("CS01") and self.avr.defined("CS00"):
+            # this combination is for the standard atmega8
+            self.avr.sbi("TCCR0", self.avr.CS01)
+            self.avr.sbi("TCCR0", self.avr.CS00)
+        elif self.avr.defined("TCCR0B") and self.avr.defined("CS01") and self.avr.defined("CS00"):
+            # this combination is for the standard 168/328/1280/2560
+            self.avr.sbi("TCCR0B", self.avr.CS01)
+            self.avr.sbi("TCCR0B", self.avr.CS00)
+        elif self.avr.defined("TCCR0A") and self.avr.defined("CS01") and self.avr.defined("CS00"):
+            # this combination is for the __AVR_ATmega645__ series
+            self.avr.sbi("TCCR0A", self.avr.CS01)
+            self.avr.sbi("TCCR0A", self.avr.CS00)
+        else:
+            raise Exception("error Timer 0 prescale factor 64 not set correctly")
+        
+    
+            # enable timer 0 overflow interrupt
+        if self.avr.defined("TIMSK") and self.avr.defined("TOIE0"):
+            self.avr.sbi("TIMSK", self.avr.TOIE0)
+        elif self.avr.defined("TIMSK0") and self.avr.defined("TOIE0"):
+            self.avr.sbi("TIMSK0", self.avr.TOIE0)
+        else:
+            raise Exception("error	Timer 0 overflow interrupt not set correctly")
+        
+    
+            # timers 1 and 2 are used for phase-correct hardware pwm
+            # this is better for motors as it ensures an even waveform
+            # note, however, that fast pwm mode can achieve a frequency of up
+            # 8 MHz (with a 16 MHz clock) at 50% duty cycle
+    
+        if self.avr.defined("TCCR1B") and self.avr.defined("CS11") and self.avr.defined("CS10"):
+            self.avr.TCCR1B = 0
+    
+            # set timer 1 prescale factor to 64
+            self.avr.sbi("TCCR1B", self.avr.CS11)
+            if self.avr.F_CPU >= 8000000:
+                self.avr.sbi("TCCR1B", self.avr.CS10)
+        
+        elif self.avr.defined("TCCR1") and self.avr.defined("CS11") and self.avr.defined("CS10"):
+            self.avr.sbi("TCCR1", self.avr.CS11)
+            if self.avr.F_CPU >= 8000000:
+                self.avr.sbi("TCCR1", self.avr.CS10)
+        
+        
+            # put timer 1 in 8-bit phase correct pwm mode
+        if self.avr.defined("TCCR1A") and self.avr.defined("WGM10"):
+            self.avr.sbi("TCCR1A", self.avr.WGM10)
+        elif self.avr.defined("TCCR1"):
+            raise Warning("warning this needs to be finished")
+        
+    
+            # set timer 2 prescale factor to 64
+        if self.avr.defined("TCCR2") and self.avr.defined("CS22"):
+            self.avr.sbi("TCCR2", self.avr.CS22)
+        elif self.avr.defined("TCCR2B") and self.avr.defined("CS22"):
+            self.avr.sbi("TCCR2B", self.avr.CS22)
+        else:
+            raise Warning("warning Timer 2 not finished (may not be present on this CPU)")
+        
+
+            # configure timer 2 for phase correct pwm (8-bit)
+        if self.avr.defined("TCCR2") and self.avr.defined("WGM20"):
+            self.avr.sbi("TCCR2", self.avr.WGM20)
+        elif self.avr.defined("TCCR2A") and self.avr.defined("WGM20"):
+            self.avr.sbi("TCCR2A", self.avr.WGM20)
+        else:
+            raise Warning("warning Timer 2 not finished (may not be present on this CPU)")
+        
+    
+        if self.avr.defined("TCCR3B") and self.avr.defined("CS31") and self.avr.defined("WGM30"):
+            self.avr.sbi("TCCR3B", self.avr.CS31)		# set timer 3 prescale factor to 64
+            self.avr.sbi("TCCR3B", self.avr.CS30)
+            self.avr.sbi("TCCR3A", self.avr.WGM30)		# put timer 3 in 8-bit phase correct pwm mode
+        
+    
+        if self.avr.defined("TCCR4A") and self.avr.defined("TCCR4B") and self.avr.defined("TCCR4D"): ## beginning of timer4 block for 32U4 and similar ##
+            self.avr.sbi("TCCR4B", self.avr.CS42)		# set timer4 prescale factor to 64
+            self.avr.sbi("TCCR4B", self.avr.CS41)
+            self.avr.sbi("TCCR4B", self.avr.CS40)
+            self.avr.sbi("TCCR4D", self.avr.WGM40)		# put timer 4 in phase- and frequency-correct PWM mode
+            self.avr.sbi("TCCR4A", self.avr.PWM4A)		# enable PWM mode for comparator OCR4A
+            self.avr.sbi("TCCR4C", self.avr.PWM4D)		# enable PWM mode for comparator OCR4D
+        else: ## beginning of timer4 block for ATMEGA1280 and ATMEGA2560 ##
+            if self.avr.defined("TCCR4B") and self.avr.defined("CS41") and self.avr.defined("WGM40"):
+                self.avr.sbi("TCCR4B", self.avr.CS41)		# set timer 4 prescale factor to 64
+                self.avr.sbi("TCCR4B", self.avr.CS40)
+                self.avr.sbi("TCCR4A", self.avr.WGM40)		# put timer 4 in 8-bit phase correct pwm mode
+
+            ## end timer4 block for ATMEGA1280/2560 and similar ##
+    
+        if self.avr.defined("TCCR5B") and self.avr.defined("CS51") and self.avr.defined("WGM50"):
+            self.avr.sbi("TCCR5B", self.avr.CS51)		# set timer 5 prescale factor to 64
+            self.avr.sbi("TCCR5B", self.avr.CS50)
+            self.avr.sbi("TCCR5A", self.avr.WGM50)		# put timer 5 in 8-bit phase correct pwm mode
+        
+    
+        if self.avr.defined("ADCSRA"):
+            # set a2d prescale factor to 128
+            # 16 MHz / 128 = 125 KHz, inside the desired 50-200 KHz range.
+            # XXX: this will not work properly for other clock speeds, and
+            # this code should use F_CPU to determine the prescale factor.
+            self.avr.sbi("ADCSRA", self.avr.ADPS2)
+            self.avr.sbi("ADCSRA", self.avr.ADPS1)
+            self.avr.sbi("ADCSRA", self.avr.ADPS0)
+    
+            # enable a2d conversions
+            self.avr.sbi("ADCSRA", self.avr.ADEN)
+        
+    
+        #     # the bootloader connects pins 0 and 1 to the USART disconnect them
+        #     # here so they can be used as normal digital i/o they will be
+        #     # reconnected in Serial.begin()
+        # if self.avr.defined("UCSRB"):
+        #     UCSRB = 0
+        # elif self.avr.defined("UCSR0B"):
+        #     UCSR0B = 0
+    
+
 
     # Implementation from wiring_digital.c
     def pinMode(self, pin, mode):
@@ -476,9 +623,190 @@ class Arduino:
             self.digitalWrite(clockPin, LOW)
         return value
 
+    # The callback handling for the external interrupt methods is a bit different to the original Arduino because of how
+    # the Python AVR layer already handles interrupts.
     # Implementation from WInterrupts.c
-    # void attachInterrupt(uint8_t, void (*)(void), int mode);
-    # void detachInterrupt(uint8_t);
+    def attachInterrupt(self, interruptNum, userFunc, mode):
+
+        avrINTx = 0
+
+        # Configure the interrupt mode (trigger on low input, any change, rising
+        # edge, or falling edge).  The mode constants were chosen to correspond
+        # to the configuration bits in the hardware register, so we simply shift
+        # the mode into place.
+
+        # Enable the interrupt.
+
+        if self.avr.defined("__AVR_ATmega32U4__"):
+            # I hate doing this, but the register assignment differs between the 1280/2560
+            # and the 32U4.  Since avrlib defines registers PCMSK1 and PCMSK2 that aren't
+            # even present on the 32U4 this is the only way to distinguish between them.
+            if interruptNum == 0:
+                self.avr.EICRA = (self.avr.EICRA & invert((1<<self.avr.self.avr.ISC00) | (1<<self.avr.ISC01))) | (mode << self.avr.self.avr.ISC00)
+                self.avr.self.avr.EIMSK |= (1<<self.avr.INT0)
+                avrINTx = 0
+            elif interruptNum == 1:
+                self.avr.EICRA = (self.avr.EICRA & invert((1<<self.avr.ISC10) | (1<<self.avr.ISC11))) | (mode << self.avr.ISC10)
+                self.avr.EIMSK |= (1<<self.avr.INT1)
+                avrINTx = 1
+            elif interruptNum == 2:
+                self.avr.EICRA = (self.avr.EICRA & invert((1<<self.avr.ISC20) | (1<<self.avr.ISC21))) | (mode << self.avr.ISC20)
+                self.avr.EIMSK |= (1<<self.avr.INT2)
+                avrINTx = 2
+            elif interruptNum == 3:
+                self.avr.EICRA = (self.avr.EICRA & invert((1<<self.avr.ISC30) | (1<<self.avr.ISC31))) | (mode << self.avr.ISC30)
+                self.avr.EIMSK |= (1<<self.avr.INT3)
+                avrINTx = 3
+            elif interruptNum == 4:
+                self.avr.EICRB = (self.avr.EICRB & invert((1<<self.avr.ISC60) | (1<<self.avr.ISC61))) | (mode << self.avr.ISC60)
+                self.avr.EIMSK |= (1<<self.avr.INT6)
+                avrINTx = 6
+        elif self.avr.defined("EICRA") and self.avr.defined("EICRB") and self.avr.defined("EIMSK"):
+            if interruptNum == 2:
+                self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC00) | (1 << self.avr.ISC01))) | (mode << self.avr.ISC00)
+                self.avr.EIMSK |= (1 << self.avr.INT0)
+                avrINTx = 0
+            elif interruptNum == 3:
+                self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC10) | (1 << self.avr.ISC11))) | (mode << self.avr.ISC10)
+                self.avr.EIMSK |= (1 << self.avr.INT1)
+                avrINTx = 1
+            elif interruptNum == 4:
+                self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC20) | (1 << self.avr.ISC21))) | (mode << self.avr.ISC20)
+                self.avr.EIMSK |= (1 << self.avr.INT2)
+                avrINTx = 2
+            elif interruptNum == 5:
+                self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC30) | (1 << self.avr.ISC31))) | (mode << self.avr.ISC30)
+                self.avr.EIMSK |= (1 << self.avr.INT3)
+                avrINTx = 3
+            elif interruptNum == 0:
+                self.avr.EICRB = (self.avr.EICRB & invert((1 << self.avr.ISC40) | (1 << self.avr.ISC41))) | (mode << self.avr.ISC40)
+                self.avr.EIMSK |= (1 << self.avr.INT4)
+                avrINTx = 4
+            elif interruptNum == 1:
+                self.avr.EICRB = (self.avr.EICRB & invert((1 << self.avr.ISC50) | (1 << self.avr.ISC51))) | (mode << self.avr.ISC50)
+                self.avr.EIMSK |= (1 << self.avr.INT5)
+                avrINTx = 5
+            elif interruptNum == 6:
+                self.avr.EICRB = (self.avr.EICRB & invert((1 << self.avr.ISC60) | (1 << self.avr.ISC61))) | (mode << self.avr.ISC60)
+                self.avr.EIMSK |= (1 << self.avr.INT6)
+                avrINTx = 6
+            elif interruptNum == 7:
+                self.avr.EICRB = (self.avr.EICRB & invert((1 << self.avr.ISC70) | (1 << self.avr.ISC71))) | (mode << self.avr.ISC70)
+                self.avr.EIMSK |= (1 << self.avr.INT7)
+                avrINTx = 7
+        else:
+            if interruptNum == 0:
+                if self.avr.defined("EICRA") and self.avr.defined("ISC00") and self.avr.defined("EIMSK"):
+                    self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC00) | (1 << self.avr.ISC01))) | (mode << self.avr.ISC00)
+                    self.avr.EIMSK |= (1 << self.avr.INT0)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC00") and self.avr.defined("GICR"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC00) | (1 << self.avr.ISC01))) | (mode << self.avr.ISC00)
+                    self.avr.GICR |= (1 << self.avr.INT0)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC00") and self.avr.defined("GIMSK"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC00) | (1 << self.avr.ISC01))) | (mode << self.avr.ISC00)
+                    self.avr.GIMSK |= (1 << self.avr.INT0)
+                else:
+                    raise Exception("error attachInterrupt not finished for this CPU (if interruptNum == 0)")
+                avrINTx = 0
+            
+            if interruptNum == 1:
+                if self.avr.defined("EICRA") and self.avr.defined("ISC10") and self.avr.defined("ISC11") and self.avr.defined("EIMSK"):
+                    self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC10) | (1 << self.avr.ISC11))) | (mode << self.avr.ISC10)
+                    self.avr.EIMSK |= (1 << self.avr.INT1)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC10") and self.avr.defined("ISC11") and self.avr.defined("GICR"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC10) | (1 << self.avr.ISC11))) | (mode << self.avr.ISC10)
+                    self.avr.GICR |= (1 << self.avr.INT1)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC10") and self.avr.defined("GIMSK") and self.avr.defined("GIMSK"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC10) | (1 << self.avr.ISC11))) | (mode << self.avr.ISC10)
+                    self.avr.GIMSK |= (1 << self.avr.INT1)
+                else:
+                    raise Warning("warning attachself.avr.INTerrupt may need some more work for this cpu (case 1)")
+                avrINTx = 1
+            
+            if self.avr.INTerruptNum == 2:
+                if self.avr.defined("EICRA") and self.avr.defined("ISC20") and self.avr.defined("ISC21") and self.avr.defined("EIMSK"):
+                    self.avr.EICRA = (self.avr.EICRA & invert((1 << self.avr.ISC20) | (1 << self.avr.ISC21))) | (mode << self.avr.ISC20)
+                    self.avr.EIMSK |= (1 << self.avr.INT2)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC20") and self.avr.defined("ISC21") and self.avr.defined("GICR"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC20) | (1 << self.avr.ISC21))) | (mode << self.avr.ISC20)
+                    self.avr.GICR |= (1 << self.avr.INT2)
+                elif self.avr.defined("MCUCR") and self.avr.defined("ISC20") and self.avr.defined("GIMSK") and self.avr.defined("GIMSK"):
+                    self.avr.MCUCR = (self.avr.MCUCR & invert((1 << self.avr.ISC20) | (1 << self.avr.ISC21))) | (mode << self.avr.ISC20)
+                    self.avr.GIMSK |= (1 << self.avr.INT2)
+                avrINTx = 2
+
+        if (interruptNum < self.EXTERNAL_NUM_INTERRUPTS):
+            # Hook into AVR class callback system [samuelbr]
+            ind = self.avr._vector_indices["INT" + str(avrINTx) + "_vect"]
+            self.avr._vect[ind] = userFunc
+            self.avr.enableInterrupt(ind)
+
+    # Implementation from WInterrupts.c
+    def detachInterrupt(self, interruptNum):
+        if (interruptNum < self.EXTERNAL_NUM_INTERRUPTS):
+
+            # Disable the interrupt.  (We can't assume that interruptNum is equal
+            # to the number of the EIMSK bit to clear, as this isn't true on the
+            # ATmega8.  There, INT0 is 6 and INT1 is 7.)
+
+            if self.avr.defined("__AVR_ATmega32U4__"):
+                if self.avr.INTerruptNum == 0:
+                    self.avr.EIMSK &= ~(1<<self.avr.INT0)
+                elif self.avr.INTerruptNum == 1:
+                    self.avr.EIMSK &= ~(1<<self.avr.INT1)
+                elif self.avr.INTerruptNum == 2:
+                    self.avr.EIMSK &= ~(1<<self.avr.INT2)
+                elif self.avr.INTerruptNum == 3:
+                    self.avr.EIMSK &= ~(1<<self.avr.INT3)
+                elif self.avr.INTerruptNum == 4:
+                    self.avr.EIMSK &= ~(1<<self.avr.INT6)
+            elif self.avr.defined("EICRA") and self.avr.defined("EICRB") and self.avr.defined("EIMSK"):
+                if interruptNum == 2:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT0)                
+                elif interruptNum == 3:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT1)
+                elif interruptNum == 4:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT2)
+                elif interruptNum == 5:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT3)
+                elif interruptNum == 0:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT4)
+                elif interruptNum == 1:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT5)
+                elif interruptNum == 6:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT6)
+                elif interruptNum == 7:
+                    self.avr.EIMSK &= ~(1 << self.avr.INT7)
+            else:
+                if interruptNum == 0:
+                    if self.avr.defined("EIMSK") and self.avr.defined("INT0"):
+                        self.avr.EIMSK &= ~(1 << self.avr.INT0)
+                    elif self.avr.defined("GICR") and self.avr.defined("ISC00"):
+                        self.avr.GICR &= ~(1 << self.avr.INT0) # atmega32
+                    elif self.avr.defined("GIMSK") and self.avr.defined("INT0"):
+                        self.avr.GIMSK &= ~(1 << self.avr.INT0)
+                    else:
+                        raise Exception("error detachInterrupt not finished for this cpu")
+                elif interruptNum == 1:
+                    if self.avr.defined("EIMSK") and self.avr.defined("INT1"):
+                        self.avr.EIMSK &= ~(1 << self.avr.INT1)
+                    elif self.avr.defined("GICR") and self.avr.defined("INT1"):
+                        self.avr.GICR &= ~(1 << self.avr.INT1) # atmega32
+                    elif self.avr.defined("GIMSK") and self.avr.defined("INT1"):
+                        self.avr.GIMSK &= ~(1 << self.avr.INT1)
+                    else:
+                        raise Warning("warning detachInterrupt may need some more work for this cpu (case 1)")
+
+        # Hook into AVR class callback system [samuelbr]
+        ind = self.avr._vector_indices["INT" + str(interruptNum) + "_vect"]
+        self.avr._vect[ind] = None
+        self.avr.disableInterrupt(ind)
+
+    def interrupts(self):
+        self.avr.sei()
+
+    def noInterrupts(self):
+        self.avr.cli()
 
     def digitalPinToPort(self, P):
         return self.board.digital_pin_to_port_PGM[P]

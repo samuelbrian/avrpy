@@ -20,6 +20,10 @@
 #define NUM_VECTORS     43
 uint8_t interruptEnabled[NUM_VECTORS];
 
+#define MAX_INTERRUPT_QUEUE 10
+volatile uint8_t triggeredInterruptsQueue[MAX_INTERRUPT_QUEUE];
+volatile uint8_t triggeredInterruptsIndex;
+
 Piper piper;
 
 void registerPipeRead(Stream& packet);
@@ -27,23 +31,37 @@ void interruptPipeRead(Stream& packet);
 void triggerInterrupt(uint8_t vectorNumber);
 
 void setup() {
-  for (uint8_t i = 0; i < NUM_VECTORS; i++) {
-    interruptEnabled[i] = INT_DISABLE;
-  }
-  Serial.begin(38400);
-  piper = Piper(Serial);
-  piper.setReadCallback(REGISTER_PIPE, registerPipeRead);
-  piper.setReadCallback(INTERRUPT_PIPE, interruptPipeRead);  
+    for (uint8_t i = 0; i < NUM_VECTORS; i++) {
+        interruptEnabled[i] = INT_DISABLE;
+    }
+    Serial.begin(38400);
+    piper = Piper(Serial);
+    triggeredInterruptsIndex = 0;
+    piper.setReadCallback(REGISTER_PIPE, registerPipeRead);
+    piper.setReadCallback(INTERRUPT_PIPE, interruptPipeRead);
 }
 
 void loop() {
-  piper.start();
+    //piper.start();
+    cli();
+    if (triggeredInterruptsIndex > 0) {
+        //digitalWrite(13, !digitalRead(13));
+        uint8_t vectorNumber = triggeredInterruptsQueue[--triggeredInterruptsIndex];
+        //asm volatile ("" : : : "memory");
+        //sei();
+        piper.writePacket(INTERRUPT_PIPE, &vectorNumber, 1);
+        //piper.writePacket(INTERRUPT_PIPE, (uint8_t*)&triggeredInterruptsIndex, 1);
+        //cli();
+    }
+    sei();
+    if (Serial.available()) piper.readPacketFromStream();
 }
 
 void registerPipeRead(Stream& packet) {
+
     uint8_t *ptr = (uint8_t*)packet.read();
     uint8_t token = packet.read();
-    
+
     if (token == READ_IO8) {
       packet.write(_SFR_IO8(ptr));
       
@@ -76,12 +94,13 @@ void registerPipeRead(Stream& packet) {
 }
 
 void interruptPipeRead(Stream& packet) {
-  interruptEnabled[packet.read()] = packet.read();
+    interruptEnabled[packet.read()] = packet.read();
 }
 
 void triggerInterrupt(uint8_t vectorNumber) {
-  if (interruptEnabled[vectorNumber] != INT_ENABLE) return;
-  piper.writePacket(INTERRUPT_PIPE, &vectorNumber, 1);
+    if (interruptEnabled[vectorNumber] == INT_ENABLE && triggeredInterruptsIndex < MAX_INTERRUPT_QUEUE) {
+        triggeredInterruptsQueue[triggeredInterruptsIndex++] = vectorNumber;
+    }
 }
 
 ISR(INT0_vect) { triggerInterrupt(1); }

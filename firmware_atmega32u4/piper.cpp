@@ -27,7 +27,7 @@ void Piper::writePacket(uint8_t pipeId, uint8_t *data, uint8_t dataLength) {
 
 void Piper::writeBegin(uint8_t pipeId) {
 	streamp->write(PACKET_BEGIN);
-	streamp->write(pipeId);	
+	streamp->write(pipeId);
 }
 
 uint8_t Piper::write(uint8_t data) {
@@ -69,7 +69,7 @@ void Piper::setReadCallback(uint8_t pipeId, ReadCallback callback) {
 void Piper::readPacketFromStream() {
 	uint8_t pipeId, endByte = 0x00;
 	
-	while (endByte != PACKET_END) {				
+	while (endByte != PACKET_END) {
 		while (readByte() != PACKET_BEGIN) ;	
 		pipeId = readByte();	
 		readLength = readByte();

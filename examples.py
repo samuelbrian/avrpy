@@ -13,13 +13,13 @@ avr.disconnect()
 ard = Leonardo()
 avr = ard.avr
 
-# Turn the Leonardo's LED on (PC7, Arduino pin 13)
-avr.DDRC  |= (1 << avr.DDD7)
-avr.PORTC |= (1 << avr.PORTD7)
-
-# Or use the equivalent Arduino code
-ard.pinMode(13, OUTPUT)
-ard.digitalWrite(13, HIGH)
+# # Turn the Leonardo's LED on (PC7, Arduino pin 13)
+# avr.DDRC  |= (1 << avr.DDD7)
+# avr.PORTC |= (1 << avr.PORTD7)
+#
+# # Or use the equivalent Arduino code
+# ard.pinMode(13, OUTPUT)
+# ard.digitalWrite(13, HIGH)
 
 # # Play with INT0 on PIND0
 # avr.DDRD &= ~(1 << avr.DDD0)   # input
@@ -30,5 +30,18 @@ ard.digitalWrite(13, HIGH)
 # #avr.piper.start()
 
 
-ard.pinMode(ard.board.A0, INPUT)
+# ard.pinMode(ard.board.A0, INPUT)
 print(ard.analogRead(ard.board.A0))
+
+ard.pinMode(13, OUTPUT)
+x = 0
+def cb():
+    global x
+    print("x=" + str(x))
+    x += 10
+    if x > 255: x = 0
+    ard.analogWrite(13, x)
+
+#
+# ard.pinMode(7, INPUT_PULLUP)
+# ard.attachInterrupt(4, cb, CHANGE)
