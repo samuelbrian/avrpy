@@ -7,5 +7,6 @@ This is an awesome library that lets you manipulate the special function registe
 * PySerial
 * Arduino IDE (1.0.5 and 1.5.6 tested)
 
-## Examples ##
-...
+## Usage ##
+
+See `examples.py`.
